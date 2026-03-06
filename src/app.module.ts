@@ -17,7 +17,11 @@ import { OrdersModule } from './orders/orders.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI', 'mongodb://localhost:27017/bhavani_pickles'),
+        uri:
+          configService.get<string>('MONGODB_URI') ||
+          configService.get<string>('MONGO_URL') ||
+          configService.get<string>('DATABASE_URL') ||
+          'mongodb://localhost:27017/bhavani_pickles',
       }),
       inject: [ConfigService],
     }),
