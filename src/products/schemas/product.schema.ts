@@ -1,11 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { Category } from '../../categories/schemas/category.schema';
 
 export type ProductDocument = HydratedDocument<Product>;
 
 @Schema({ _id: true })
 export class ProductVariant {
+  _id!: Types.ObjectId;
+
   @Prop({ required: true })
   weight!: string;
 
