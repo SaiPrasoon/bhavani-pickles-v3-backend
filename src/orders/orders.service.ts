@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Order, OrderDocument } from './schemas/order.schema';
 import { Cart, CartDocument } from '../cart/schemas/cart.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -14,7 +14,8 @@ export class OrdersService {
   ) {}
 
   async create(userId: string, dto: CreateOrderDto) {
-    const cart = await this.cartModel.findOne({ user: userId }).populate('items.product').exec();
+    const uid = new Types.ObjectId(userId);
+    const cart = await this.cartModel.findOne({ user: uid }).populate('items.product').exec();
     if (!cart || cart.items.length === 0) throw new BadRequestException('Cart is empty');
 
     const orderItems = cart.items.map((item) => {
@@ -36,7 +37,7 @@ export class OrdersService {
     }).save();
 
     // Clear cart after order placement
-    await this.cartModel.findOneAndUpdate({ user: userId }, { items: [], totalAmount: 0 });
+    await this.cartModel.findOneAndUpdate({ user: uid }, { items: [], totalAmount: 0 });
 
     return order.populate('items.product');
   }
@@ -46,7 +47,7 @@ export class OrdersService {
   }
 
   findByUser(userId: string) {
-    return this.orderModel.find({ user: userId }).populate('items.product').sort({ createdAt: -1 }).exec();
+    return this.orderModel.find({ user: new Types.ObjectId(userId) }).populate('items.product').sort({ createdAt: -1 }).exec();
   }
 
   async findOne(id: string) {

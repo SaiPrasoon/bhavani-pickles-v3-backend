@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
@@ -11,11 +15,16 @@ export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserDocument> {
-    const existing = await this.userModel.findOne({ email: createUserDto.email });
+    const existing = await this.userModel.findOne({
+      email: createUserDto.email,
+    });
     if (existing) throw new ConflictException('Email already in use');
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, 12);
-    const user = new this.userModel({ ...createUserDto, password: hashedPassword });
+    const user = new this.userModel({
+      ...createUserDto,
+      password: hashedPassword,
+    });
     return user.save();
   }
 
@@ -33,8 +42,13 @@ export class UsersService {
     return this.userModel.findOne({ email }).select('+password').exec();
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<UserDocument> {
-    const user = await this.userModel.findByIdAndUpdate(id, updateUserDto, { new: true });
+  async update(
+    id: string,
+    updateUserDto: UpdateUserDto,
+  ): Promise<UserDocument> {
+    const user = await this.userModel.findByIdAndUpdate(id, updateUserDto, {
+      new: true,
+    });
     if (!user) throw new NotFoundException('User not found');
     return user;
   }

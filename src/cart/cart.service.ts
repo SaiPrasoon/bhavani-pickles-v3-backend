@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Cart, CartDocument } from './schemas/cart.schema';
 import { Product, ProductDocument } from '../products/schemas/product.schema';
 import { AddToCartDto, UpdateCartItemDto } from './dto/cart.dto';
@@ -13,9 +13,10 @@ export class CartService {
   ) {}
 
   async getCart(userId: string) {
-    let cart = await this.cartModel.findOne({ user: userId }).populate('items.product').exec();
+    const uid = new Types.ObjectId(userId);
+    let cart = await this.cartModel.findOne({ user: uid }).populate('items.product').exec();
     if (!cart) {
-      cart = await new this.cartModel({ user: userId, items: [], totalAmount: 0 }).save();
+      cart = await new this.cartModel({ user: uid, items: [], totalAmount: 0 }).save();
     }
     return cart;
   }
@@ -25,8 +26,9 @@ export class CartService {
     if (!product || !product.isActive) throw new NotFoundException('Product not found');
     if (product.stock < dto.quantity) throw new BadRequestException('Insufficient stock');
 
-    let cart = await this.cartModel.findOne({ user: userId });
-    if (!cart) cart = new this.cartModel({ user: userId, items: [], totalAmount: 0 });
+    const uid = new Types.ObjectId(userId);
+    let cart = await this.cartModel.findOne({ user: uid });
+    if (!cart) cart = new this.cartModel({ user: uid, items: [], totalAmount: 0 });
 
     const itemPrice = product.discountPrice || product.price;
     const existingItem = cart.items.find((i) => i.product.toString() === dto.productId);
@@ -43,7 +45,7 @@ export class CartService {
   }
 
   async updateItem(userId: string, productId: string, dto: UpdateCartItemDto) {
-    const cart = await this.cartModel.findOne({ user: userId });
+    const cart = await this.cartModel.findOne({ user: new Types.ObjectId(userId) });
     if (!cart) throw new NotFoundException('Cart not found');
 
     const item = cart.items.find((i) => i.product.toString() === productId);
@@ -56,7 +58,7 @@ export class CartService {
   }
 
   async removeItem(userId: string, productId: string) {
-    const cart = await this.cartModel.findOne({ user: userId });
+    const cart = await this.cartModel.findOne({ user: new Types.ObjectId(userId) });
     if (!cart) throw new NotFoundException('Cart not found');
 
     cart.items = cart.items.filter((i) => i.product.toString() !== productId);
@@ -66,6 +68,6 @@ export class CartService {
   }
 
   async clearCart(userId: string) {
-    await this.cartModel.findOneAndUpdate({ user: userId }, { items: [], totalAmount: 0 });
+    await this.cartModel.findOneAndUpdate({ user: new Types.ObjectId(userId) }, { items: [], totalAmount: 0 });
   }
 }

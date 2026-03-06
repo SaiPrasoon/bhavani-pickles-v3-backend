@@ -1,43 +1,43 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
 import { Category } from '../../categories/schemas/category.schema';
 
-export type ProductDocument = Product & Document;
+export type ProductDocument = HydratedDocument<Product>;
 
 @Schema({ timestamps: true })
 export class Product {
   @Prop({ required: true, trim: true })
-  name: string;
+  name!: string;
 
   @Prop({ required: true })
-  description: string;
+  description!: string;
 
   @Prop({ required: true, min: 0 })
-  price: number;
+  price!: number;
 
   @Prop({ min: 0, default: 0 })
   discountPrice?: number;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Category', required: true })
-  category: Category;
+  category!: Category;
 
   @Prop({ type: [String], default: [] })
-  images: string[];
+  images!: string[];
 
   @Prop({ required: true, min: 0, default: 0 })
-  stock: number;
+  stock!: number;
 
   @Prop({ min: 0, max: 5, default: 0 })
-  rating: number;
+  rating!: number;
 
   @Prop({ default: 0 })
-  reviewCount: number;
+  reviewCount!: number;
 
   @Prop({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Prop({ type: [String], default: [] })
-  tags: string[];
+  tags!: string[];
 
   @Prop()
   weight?: string;
