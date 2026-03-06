@@ -29,9 +29,10 @@ export class ProductsService {
     if (category) filter.category = category;
     if (search) filter.$text = { $search: search };
     if (minPrice !== undefined || maxPrice !== undefined) {
-      filter.price = {};
-      if (minPrice !== undefined) filter.price.$gte = minPrice;
-      if (maxPrice !== undefined) filter.price.$lte = maxPrice;
+      const priceFilter: any = {};
+      if (minPrice !== undefined) priceFilter.$gte = minPrice;
+      if (maxPrice !== undefined) priceFilter.$lte = maxPrice;
+      filter['variants.price'] = priceFilter;
     }
 
     const skip = (page - 1) * limit;

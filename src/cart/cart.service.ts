@@ -24,19 +24,30 @@ export class CartService {
   async addItem(userId: string, dto: AddToCartDto) {
     const product = await this.productModel.findById(dto.productId);
     if (!product || !product.isActive) throw new NotFoundException('Product not found');
-    if (product.stock < dto.quantity) throw new BadRequestException('Insufficient stock');
+
+    const variant = product.variants.find((v) => v._id!.toString() === dto.variantId);
+    if (!variant) throw new NotFoundException('Variant not found');
+    if (variant.stock < dto.quantity) throw new BadRequestException('Insufficient stock');
 
     const uid = new Types.ObjectId(userId);
     let cart = await this.cartModel.findOne({ user: uid });
     if (!cart) cart = new this.cartModel({ user: uid, items: [], totalAmount: 0 });
 
-    const itemPrice = product.discountPrice || product.price;
-    const existingItem = cart.items.find((i) => i.product.toString() === dto.productId);
+    const itemPrice = variant.discountedPrice ?? variant.price;
+    const existingItem = cart.items.find(
+      (i) => i.product.toString() === dto.productId && i.variantId.toString() === dto.variantId,
+    );
 
     if (existingItem) {
       existingItem.quantity += dto.quantity;
     } else {
-      cart.items.push({ product: product._id as any, quantity: dto.quantity, price: itemPrice });
+      cart.items.push({
+        product: product._id as any,
+        variantId: variant._id as any,
+        weight: variant.weight,
+        quantity: dto.quantity,
+        price: itemPrice,
+      });
     }
 
     cart.totalAmount = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);

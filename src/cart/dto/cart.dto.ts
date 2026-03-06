@@ -8,6 +8,11 @@ export class AddToCartDto {
   @IsNotEmpty()
   productId: string;
 
+  @ApiProperty({ description: 'Variant ID' })
+  @IsString()
+  @IsNotEmpty()
+  variantId: string;
+
   @ApiProperty({ minimum: 1 })
   @Type(() => Number)
   @IsNumber()

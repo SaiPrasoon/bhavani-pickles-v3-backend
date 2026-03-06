@@ -1,6 +1,38 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, IsBoolean, IsArray, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsBoolean, IsArray, Min, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+
+export class CreateVariantDto {
+  @ApiProperty({ example: '250g' })
+  @IsString()
+  @IsNotEmpty()
+  weight: string;
+
+  @ApiProperty({ minimum: 1 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  quantity: number;
+
+  @ApiProperty({ minimum: 0 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  price: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  discountedPrice?: number;
+
+  @ApiProperty({ minimum: 0 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  stock: number;
+}
 
 export class CreateProductDto {
   @ApiProperty()
@@ -13,44 +45,26 @@ export class CreateProductDto {
   @IsNotEmpty()
   description: string;
 
-  @ApiProperty()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  price: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  discountPrice?: number;
-
   @ApiProperty({ description: 'Category ID' })
   @IsString()
   @IsNotEmpty()
   category: string;
+
+  @ApiProperty({ type: [CreateVariantDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateVariantDto)
+  variants: CreateVariantDto[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
   images?: string[];
 
-  @ApiProperty()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  stock: number;
-
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
   tags?: string[];
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  weight?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
