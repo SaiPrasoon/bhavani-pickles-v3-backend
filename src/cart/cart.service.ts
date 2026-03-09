@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Cart, CartDocument } from './schemas/cart.schema';
 import { Product, ProductDocument } from '../products/schemas/product.schema';
+import { ProductVariant, ProductVariantDocument } from '../products/schemas/product-variant.schema';
 import { AddToCartDto, UpdateCartItemDto } from './dto/cart.dto';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class CartService {
   constructor(
     @InjectModel(Cart.name) private cartModel: Model<CartDocument>,
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+    @InjectModel(ProductVariant.name) private variantModel: Model<ProductVariantDocument>,
   ) {}
 
   async getCart(userId: string) {
@@ -25,7 +27,10 @@ export class CartService {
     const product = await this.productModel.findById(dto.productId);
     if (!product || !product.isActive) throw new NotFoundException('Product not found');
 
-    const variant = product.variants.find((v) => v._id!.toString() === dto.variantId);
+    const variant = await this.variantModel.findOne({
+      product: new Types.ObjectId(dto.productId),
+      weight: dto.weight,
+    });
     if (!variant) throw new NotFoundException('Variant not found');
     if (variant.stock < dto.quantity) throw new BadRequestException('Insufficient stock');
 
@@ -35,15 +40,21 @@ export class CartService {
 
     const itemPrice = variant.discountedPrice ?? variant.price;
     const existingItem = cart.items.find(
-      (i) => i.product.toString() === dto.productId && i.variantId.toString() === dto.variantId,
+      (i) => i.product.toString() === dto.productId && i.weight === dto.weight,
     );
 
     if (existingItem) {
-      existingItem.quantity += dto.quantity;
+      const newTotal = existingItem.quantity + dto.quantity;
+      if (newTotal > variant.stock) {
+        throw new BadRequestException(
+          `Only ${variant.stock} units available. You already have ${existingItem.quantity} in your cart.`,
+        );
+      }
+      existingItem.quantity = newTotal;
     } else {
-      cart.items.push({
-        product: product._id as any,
-        variantId: variant._id as any,
+      (cart.items as any[]).push({
+        product: product._id,
+        variantId: variant._id,
         weight: variant.weight,
         quantity: dto.quantity,
         price: itemPrice,
@@ -61,6 +72,16 @@ export class CartService {
 
     const item = cart.items.find((i) => i.product.toString() === productId);
     if (!item) throw new NotFoundException('Item not in cart');
+
+    const variant = await this.variantModel.findOne({
+      product: new Types.ObjectId(productId),
+      weight: item.weight,
+    });
+    if (!variant) throw new NotFoundException('Variant not found');
+
+    if (dto.quantity > variant.stock) {
+      throw new BadRequestException(`Only ${variant.stock} units available in stock.`);
+    }
 
     item.quantity = dto.quantity;
     cart.totalAmount = cart.items.reduce((sum, i) => sum + i.price * i.quantity, 0);

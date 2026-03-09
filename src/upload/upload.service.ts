@@ -1,6 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { v2 as cloudinary } from 'cloudinary';
-import { Writable } from 'stream';
 
 @Injectable()
 export class UploadService {
@@ -15,7 +14,7 @@ export class UploadService {
   async uploadImage(file: Express.Multer.File, folder = 'general'): Promise<string> {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: `bhavani-pickles/${folder}`, resource_type: 'image' },
+        { folder: `bhavani-pickles/${process.env.NODE_ENV || 'development'}/${folder}`, resource_type: 'image' },
         (error, result) => {
           if (error || !result) return reject(error);
           resolve(result.secure_url);

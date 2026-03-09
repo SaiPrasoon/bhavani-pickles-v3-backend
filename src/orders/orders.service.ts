@@ -22,7 +22,7 @@ export class OrdersService {
       const product = item.product as any;
       return {
         product: product._id,
-        variantId: item.variantId,
+        variantId: (item as any).variantId,
         name: product.name,
         weight: item.weight,
         quantity: item.quantity,

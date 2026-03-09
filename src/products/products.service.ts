@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Product, ProductDocument } from './schemas/product.schema';
+import { ProductVariant, ProductVariantDocument } from './schemas/product-variant.schema';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -18,10 +19,27 @@ export interface ProductQuery {
 export class ProductsService {
   constructor(
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+    @InjectModel(ProductVariant.name) private variantModel: Model<ProductVariantDocument>,
   ) {}
 
-  create(dto: CreateProductDto) {
-    return new this.productModel(dto).save();
+  async create(dto: CreateProductDto) {
+    const { variants: variantDtos, ...productData } = dto;
+
+    // Create product first with empty variants
+    const product = await new this.productModel({ ...productData, variants: [] }).save();
+
+    // Create each variant as a separate document linked to the product
+    const variants = await Promise.all(
+      variantDtos.map((v) =>
+        new this.variantModel({ ...v, product: product._id }).save(),
+      ),
+    );
+
+    // Link variant IDs back to the product
+    product.variants = variants.map((v) => v._id) as any;
+    await product.save();
+
+    return product.populate(['category', 'variants']);
   }
 
   async findAll(query: ProductQuery) {
@@ -33,15 +51,21 @@ export class ProductsService {
       page = 1,
       limit = 12,
     } = query;
+
     const filter: any = { isActive: true };
 
     if (category) filter.category = category;
     if (search) filter.$text = { $search: search };
+
+    // Price filter: query variants first to get matching product IDs
     if (minPrice !== undefined || maxPrice !== undefined) {
       const priceFilter: any = {};
-      if (minPrice !== undefined) priceFilter.$gte = minPrice;
-      if (maxPrice !== undefined) priceFilter.$lte = maxPrice;
-      filter['variants.price'] = priceFilter;
+      if (minPrice !== undefined) priceFilter.$gte = Number(minPrice);
+      if (maxPrice !== undefined) priceFilter.$lte = Number(maxPrice);
+      const matchingProductIds = await this.variantModel
+        .find({ price: priceFilter })
+        .distinct('product');
+      filter._id = { $in: matchingProductIds };
     }
 
     const skip = (page - 1) * limit;
@@ -49,6 +73,7 @@ export class ProductsService {
       this.productModel
         .find(filter)
         .populate('category')
+        .populate('variants')
         .skip(skip)
         .limit(limit)
         .lean()
@@ -63,6 +88,7 @@ export class ProductsService {
     const product = await this.productModel
       .findById(id)
       .populate('category')
+      .populate('variants')
       .lean()
       .exec();
     if (!product) throw new NotFoundException('Product not found');
@@ -70,14 +96,35 @@ export class ProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto) {
+    const { variants: variantDtos, ...productData } = dto;
+
+    // If variants are provided, replace them
+    if (variantDtos && variantDtos.length > 0) {
+      // Delete old variants
+      await this.variantModel.deleteMany({ product: new Types.ObjectId(id) });
+
+      // Create new variants
+      const variants = await Promise.all(
+        variantDtos.map((v) =>
+          new this.variantModel({ ...v, product: new Types.ObjectId(id) }).save(),
+        ),
+      );
+
+      (productData as any).variants = variants.map((v) => v._id);
+    }
+
     const product = await this.productModel
-      .findByIdAndUpdate(id, dto, { new: true })
-      .populate('category');
+      .findByIdAndUpdate(id, productData, { new: true })
+      .populate('category')
+      .populate('variants');
     if (!product) throw new NotFoundException('Product not found');
     return product;
   }
 
   async remove(id: string) {
-    await this.productModel.findByIdAndUpdate(id, { isActive: false });
+    await Promise.all([
+      this.productModel.findByIdAndUpdate(id, { isActive: false }),
+      this.variantModel.updateMany({ product: new Types.ObjectId(id) }, { stock: 0 }),
+    ]);
   }
 }

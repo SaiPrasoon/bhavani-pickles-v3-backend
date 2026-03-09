@@ -8,10 +8,10 @@ export class AddToCartDto {
   @IsNotEmpty()
   productId: string;
 
-  @ApiProperty({ description: 'Variant ID' })
+  @ApiProperty({ description: 'Variant weight (e.g. 250gms)' })
   @IsString()
   @IsNotEmpty()
-  variantId: string;
+  weight: string;
 
   @ApiProperty({ minimum: 1 })
   @Type(() => Number)
