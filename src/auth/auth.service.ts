@@ -52,6 +52,26 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  async refreshToken(refreshToken: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+      const user = await this.usersService.findById(payload.sub);
+      if (!user || !user.isActive) throw new UnauthorizedException();
+      const accessToken = await this.jwtService.signAsync(
+        { sub: user.id, email: user.email, role: user.role },
+        {
+          secret: this.configService.get('JWT_SECRET'),
+          expiresIn: this.configService.get('JWT_EXPIRES_IN', '15m'),
+        },
+      );
+      return { accessToken };
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
   private sanitizeUser(user: any) {
     const { password, ...sanitized } = user.toObject ? user.toObject() : user;
     return sanitized;
