@@ -6,6 +6,7 @@ export type ProductDocument = HydratedDocument<Product>;
 
 @Schema({ _id: true })
 export class ProductVariant {
+  @Prop({ type: Types.ObjectId })
   _id!: Types.ObjectId;
 
   @Prop({ required: true })
