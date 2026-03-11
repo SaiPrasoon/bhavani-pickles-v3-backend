@@ -64,11 +64,20 @@ export class Order {
   @Prop()
   notes?: string;
 
+  @Prop({ enum: ['COD', 'online'], default: 'online' })
+  paymentType!: 'COD' | 'online';
+
   @Prop({ default: false })
   isPaid!: boolean;
 
   @Prop()
   paidAt?: Date;
+
+  @Prop()
+  razorpayOrderId?: string;
+
+  @Prop()
+  razorpayPaymentId?: string;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

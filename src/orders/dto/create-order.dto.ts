@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsOptional, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsIn,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -20,4 +26,8 @@ export class CreateOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiProperty({ enum: ['COD', 'online'], default: 'online' })
+  @IsIn(['COD', 'online'])
+  paymentType: 'COD' | 'online';
 }
