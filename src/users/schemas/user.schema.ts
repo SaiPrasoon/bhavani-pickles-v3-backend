@@ -4,6 +4,35 @@ import { Role } from '../../common/enums/role.enum';
 
 export type UserDocument = HydratedDocument<User>;
 
+@Schema({ _id: true })
+export class Address {
+  @Prop({ required: true })
+  label!: string;
+
+  @Prop({ required: true })
+  line1!: string;
+
+  @Prop()
+  line2?: string;
+
+  @Prop({ required: true })
+  city!: string;
+
+  @Prop({ required: true })
+  state!: string;
+
+  @Prop({ required: true })
+  pincode!: string;
+
+  @Prop()
+  phone?: string;
+
+  @Prop({ default: false })
+  isDefault!: boolean;
+}
+
+const AddressSchema = SchemaFactory.createForClass(Address);
+
 @Schema({ timestamps: true })
 export class User {
   @Prop({ required: true, trim: true })
@@ -24,8 +53,8 @@ export class User {
   @Prop()
   phone?: string;
 
-  @Prop()
-  address?: string;
+  @Prop({ type: [AddressSchema], default: [] })
+  addresses!: Address[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -11,9 +11,6 @@ export class ProductVariant {
   @Prop({ required: true })
   weight!: string;
 
-  @Prop({ required: true, min: 1 })
-  quantity!: number;
-
   @Prop({ required: true, min: 0 })
   price!: number;
 
@@ -22,6 +19,10 @@ export class ProductVariant {
 
   @Prop({ required: true, min: 0, default: 0 })
   stock!: number;
+
+  @Prop({ min: 0, default: 0 })
+  leftoverStock!: number;
 }
 
-export const ProductVariantSchema = SchemaFactory.createForClass(ProductVariant);
+export const ProductVariantSchema =
+  SchemaFactory.createForClass(ProductVariant);

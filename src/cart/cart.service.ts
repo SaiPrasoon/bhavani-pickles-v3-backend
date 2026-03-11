@@ -66,21 +66,23 @@ export class CartService {
     return cart.populate('items.product');
   }
 
-  async updateItem(userId: string, productId: string, dto: UpdateCartItemDto) {
+  async updateItem(userId: string, productId: string, weight: string, dto: UpdateCartItemDto) {
     const cart = await this.cartModel.findOne({ user: new Types.ObjectId(userId) });
     if (!cart) throw new NotFoundException('Cart not found');
 
-    const item = cart.items.find((i) => i.product.toString() === productId);
+    const item = cart.items.find(
+      (i) => i.product.toString() === productId && i.weight === weight,
+    );
     if (!item) throw new NotFoundException('Item not in cart');
 
     const variant = await this.variantModel.findOne({
       product: new Types.ObjectId(productId),
-      weight: item.weight,
+      weight,
     });
     if (!variant) throw new NotFoundException('Variant not found');
 
-    if (dto.quantity > variant.stock) {
-      throw new BadRequestException(`Only ${variant.stock} units available in stock.`);
+    if (dto.quantity > variant.leftoverStock) {
+      throw new BadRequestException(`Only ${variant.leftoverStock} units available in stock.`);
     }
 
     item.quantity = dto.quantity;
@@ -89,11 +91,13 @@ export class CartService {
     return cart.populate('items.product');
   }
 
-  async removeItem(userId: string, productId: string) {
+  async removeItem(userId: string, productId: string, weight: string) {
     const cart = await this.cartModel.findOne({ user: new Types.ObjectId(userId) });
     if (!cart) throw new NotFoundException('Cart not found');
 
-    cart.items = cart.items.filter((i) => i.product.toString() !== productId);
+    cart.items = cart.items.filter(
+      (i) => !(i.product.toString() === productId && i.weight === weight),
+    );
     cart.totalAmount = cart.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
     await cart.save();
     return cart.populate('items.product');

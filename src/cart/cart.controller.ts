@@ -22,18 +22,23 @@ export class CartController {
     return this.cartService.addItem(userId, dto);
   }
 
-  @Patch('items/:productId')
+  @Patch('items/:productId/:weight')
   updateItem(
     @CurrentUser('sub') userId: string,
     @Param('productId') productId: string,
+    @Param('weight') weight: string,
     @Body() dto: UpdateCartItemDto,
   ) {
-    return this.cartService.updateItem(userId, productId, dto);
+    return this.cartService.updateItem(userId, productId, weight, dto);
   }
 
-  @Delete('items/:productId')
-  removeItem(@CurrentUser('sub') userId: string, @Param('productId') productId: string) {
-    return this.cartService.removeItem(userId, productId);
+  @Delete('items/:productId/:weight')
+  removeItem(
+    @CurrentUser('sub') userId: string,
+    @Param('productId') productId: string,
+    @Param('weight') weight: string,
+  ) {
+    return this.cartService.removeItem(userId, productId, weight);
   }
 
   @Delete()

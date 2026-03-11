@@ -8,12 +8,6 @@ export class CreateVariantDto {
   @IsNotEmpty()
   weight: string;
 
-  @ApiProperty({ minimum: 1 })
-  @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  quantity: number;
-
   @ApiProperty({ minimum: 0 })
   @Type(() => Number)
   @IsNumber()
@@ -75,4 +69,9 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isOutOfStock?: boolean;
 }

@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Product, ProductDocument } from './schemas/product.schema';
-import { ProductVariant, ProductVariantDocument } from './schemas/product-variant.schema';
+import {
+  ProductVariant,
+  ProductVariantDocument,
+} from './schemas/product-variant.schema';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -19,19 +22,27 @@ export interface ProductQuery {
 export class ProductsService {
   constructor(
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
-    @InjectModel(ProductVariant.name) private variantModel: Model<ProductVariantDocument>,
+    @InjectModel(ProductVariant.name)
+    private variantModel: Model<ProductVariantDocument>,
   ) {}
 
   async create(dto: CreateProductDto) {
     const { variants: variantDtos, ...productData } = dto;
 
     // Create product first with empty variants
-    const product = await new this.productModel({ ...productData, variants: [] }).save();
+    const product = await new this.productModel({
+      ...productData,
+      variants: [],
+    }).save();
 
     // Create each variant as a separate document linked to the product
     const variants = await Promise.all(
       variantDtos.map((v) =>
-        new this.variantModel({ ...v, product: product._id }).save(),
+        new this.variantModel({
+          ...v,
+          leftoverStock: v.stock,
+          product: product._id,
+        }).save(),
       ),
     );
 
@@ -106,11 +117,19 @@ export class ProductsService {
       // Create new variants
       const variants = await Promise.all(
         variantDtos.map((v) =>
-          new this.variantModel({ ...v, product: new Types.ObjectId(id) }).save(),
+          new this.variantModel({
+            ...v,
+            leftoverStock: v.stock,
+            product: new Types.ObjectId(id),
+          }).save(),
         ),
       );
 
       (productData as any).variants = variants.map((v) => v._id);
+
+      // If any variant has stock > 0, clear the out-of-stock flag
+      const hasStock = variantDtos.some((v) => v.stock > 0);
+      if (hasStock) (productData as any).isOutOfStock = false;
     }
 
     const product = await this.productModel
@@ -124,7 +143,10 @@ export class ProductsService {
   async remove(id: string) {
     await Promise.all([
       this.productModel.findByIdAndUpdate(id, { isActive: false }),
-      this.variantModel.updateMany({ product: new Types.ObjectId(id) }, { stock: 0 }),
+      this.variantModel.updateMany(
+        { product: new Types.ObjectId(id) },
+        { stock: 0 },
+      ),
     ]);
   }
 }
