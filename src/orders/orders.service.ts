@@ -7,6 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import Razorpay from 'razorpay';
 import { Order, OrderDocument, OrderStatus } from './schemas/order.schema';
 import { Cart, CartDocument } from '../cart/schemas/cart.schema';
@@ -15,6 +16,7 @@ import {
   ProductVariantDocument,
 } from '../products/schemas/product-variant.schema';
 import { Product, ProductDocument } from '../products/schemas/product.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
@@ -29,6 +31,7 @@ export class OrdersService {
     @InjectModel(ProductVariant.name)
     private variantModel: Model<ProductVariantDocument>,
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
     private configService: ConfigService,
   ) {
     this.razorpay = new Razorpay({
@@ -37,57 +40,113 @@ export class OrdersService {
     });
   }
 
-  // ── Step 1: Initiate — COD confirms directly, online creates Razorpay order ──
-  async initiatePayment(userId: string, dto: CreateOrderDto) {
-    const uid = new Types.ObjectId(userId);
-    const cart = await this.cartModel
-      .findOne({ user: uid })
-      .populate('items.product')
-      .lean()
-      .exec();
-    if (!cart || cart.items.length === 0)
-      throw new BadRequestException('Cart is empty');
+  // ── Resolve or create the user for this order ─────────────────────────────
+  private async resolveUser(
+    userId: string | null,
+    dto: CreateOrderDto,
+  ): Promise<UserDocument> {
+    if (userId) {
+      const user = await this.userModel.findById(userId);
+      if (!user) throw new NotFoundException('User not found');
+      return user;
+    }
 
-    const orderItems = cart.items.map((item) => {
-      const product = item.product as any;
-      return {
-        product: product._id,
-        name: product.name,
+    // Guest: find existing account by email or create a new one
+    const email = dto.customerEmail.toLowerCase().trim();
+    let user = await this.userModel.findOne({ email });
+    if (!user) {
+      const tempPassword = await bcrypt.hash(
+        crypto.randomBytes(20).toString('hex'),
+        12,
+      );
+      user = await new this.userModel({
+        name: dto.customerName.trim(),
+        email,
+        phone: dto.customerPhone,
+        password: tempPassword,
+      }).save();
+    }
+    return user;
+  }
+
+  // ── Step 1: Initiate — COD confirms directly, online creates Razorpay order ──
+  async initiatePayment(userId: string | null, dto: CreateOrderDto) {
+    const user = await this.resolveUser(userId, dto);
+    const uid = user._id as Types.ObjectId;
+
+    // Build order items — from server cart (logged-in) or DTO (guest)
+    let orderItems: Array<{
+      product: any;
+      name: string;
+      weight: string;
+      quantity: number;
+      price: number;
+    }>;
+    let totalAmount: number;
+
+    if (userId) {
+      const cart = await this.cartModel
+        .findOne({ user: uid })
+        .populate('items.product')
+        .lean()
+        .exec();
+      if (!cart || cart.items.length === 0)
+        throw new BadRequestException('Cart is empty');
+
+      orderItems = cart.items.map((item) => {
+        const product = item.product as any;
+        return {
+          product: product._id,
+          name: product.name,
+          weight: item.weight,
+          quantity: item.quantity,
+          price: item.price,
+        };
+      });
+      totalAmount = cart.totalAmount;
+    } else {
+      if (!dto.guestItems?.length) throw new BadRequestException('Cart is empty');
+      orderItems = dto.guestItems.map((item) => ({
+        product: new Types.ObjectId(item.productId),
+        name: item.name,
         weight: item.weight,
         quantity: item.quantity,
         price: item.price,
-      };
-    });
+      }));
+      totalAmount = orderItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    }
 
     // ── COD: create confirmed order immediately ──────────────────────────────
     if (dto.paymentType === 'COD') {
       const order = await new this.orderModel({
-        user: userId,
+        user: uid,
         items: orderItems,
         shippingAddress: dto.shippingAddress,
-        totalAmount: cart.totalAmount,
+        totalAmount,
         notes: dto.notes,
         paymentType: 'COD',
         status: OrderStatus.CONFIRMED,
         isPaid: false,
       }).save();
 
-      await this.clearCartAndDeductStock(uid, cart.items as any[]);
+      await this.deductStock(orderItems);
+      if (userId) await this.clearServerCart(uid);
+
       return { orderId: order._id, paymentType: 'COD' };
     }
 
     // ── Online: create Razorpay order + pending DB order ────────────────────
     const razorpayOrder = await this.razorpay.orders.create({
-      amount: Math.round(cart.totalAmount * 100),
+      amount: Math.round(totalAmount * 100),
       currency: 'INR',
       receipt: `receipt_${Date.now()}`,
     });
 
     const order = await new this.orderModel({
-      user: userId,
+      user: uid,
       items: orderItems,
       shippingAddress: dto.shippingAddress,
-      totalAmount: cart.totalAmount,
+      totalAmount,
       notes: dto.notes,
       paymentType: 'online',
       status: OrderStatus.PENDING,
@@ -109,7 +168,6 @@ export class OrdersService {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('Order not found');
 
-    // Verify HMAC-SHA256 signature
     const body = dto.razorpayOrderId + '|' + dto.razorpayPaymentId;
     const expectedSignature = crypto
       .createHmac(
@@ -129,24 +187,16 @@ export class OrdersService {
     order.razorpayPaymentId = dto.razorpayPaymentId;
     await order.save();
 
-    await this.clearCartAndDeductStock(
-      order.user as Types.ObjectId,
-      order.items as any[],
-    );
+    await this.deductStock(order.items as any[]);
+    await this.clearServerCart(order.user as Types.ObjectId);
 
     return order.populate('items.product');
   }
 
-  // ── Shared: clear cart + decrement variant stock ─────────────────────────────
-  private async clearCartAndDeductStock(
-    userId: Types.ObjectId,
+  // ── Deduct variant stock ──────────────────────────────────────────────────
+  private async deductStock(
     items: Array<{ product: any; weight: string; quantity: number }>,
   ) {
-    await this.cartModel.findOneAndUpdate(
-      { user: userId },
-      { items: [], totalAmount: 0 },
-    );
-
     const affectedProductIds = new Set<string>();
     for (const item of items) {
       const productId = item.product._id?.toString() ?? item.product.toString();
@@ -162,14 +212,19 @@ export class OrdersService {
         product: new Types.ObjectId(productId),
       });
       const allDepleted =
-        allVariants.length > 0 &&
-        allVariants.every((v) => v.leftoverStock <= 0);
+        allVariants.length > 0 && allVariants.every((v) => v.leftoverStock <= 0);
       if (allDepleted) {
-        await this.productModel.findByIdAndUpdate(productId, {
-          isOutOfStock: true,
-        });
+        await this.productModel.findByIdAndUpdate(productId, { isOutOfStock: true });
       }
     }
+  }
+
+  // ── Clear server-side cart for a user (no-op if cart doesn't exist) ────────
+  private async clearServerCart(userId: Types.ObjectId) {
+    await this.cartModel.findOneAndUpdate(
+      { user: userId },
+      { items: [], totalAmount: 0 },
+    );
   }
 
   findAll() {
