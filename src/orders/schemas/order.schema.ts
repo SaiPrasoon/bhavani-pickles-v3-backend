@@ -78,6 +78,15 @@ export class Order {
 
   @Prop()
   razorpayPaymentId?: string;
+
+  @Prop()
+  cancellationReason?: string;
+
+  @Prop()
+  cancelledAt?: Date;
+
+  @Prop()
+  cancelledBy?: string; // 'user' or 'admin'
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
