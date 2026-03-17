@@ -12,6 +12,7 @@ import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -58,6 +59,18 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
     return this.ordersService.findOne(id);
+  }
+
+  // Both users (own orders) and admins can cancel
+  @Patch(':id/cancel')
+  @UseGuards(JwtAuthGuard)
+  cancelOrder(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
+    @Body() dto: CancelOrderDto,
+  ) {
+    return this.ordersService.cancelOrder(id, userId, role, dto);
   }
 
   @Patch(':id/status')

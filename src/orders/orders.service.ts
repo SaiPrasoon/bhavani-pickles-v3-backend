@@ -20,6 +20,7 @@ import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 
 @Injectable()
 export class OrdersService {
@@ -225,6 +226,73 @@ export class OrdersService {
       { user: userId },
       { items: [], totalAmount: 0 },
     );
+  }
+
+  // ── Cancel an order ────────────────────────────────────────────────────
+  private static CANCELLABLE_STATUSES = [
+    OrderStatus.PENDING,
+    OrderStatus.CONFIRMED,
+    OrderStatus.PROCESSING,
+  ];
+
+  async cancelOrder(
+    orderId: string,
+    userId: string | null,
+    role: string,
+    dto: CancelOrderDto,
+  ) {
+    const order = await this.orderModel.findById(orderId);
+    if (!order) throw new NotFoundException('Order not found');
+
+    // Users can only cancel their own orders
+    if (role !== 'admin' && order.user.toString() !== userId) {
+      throw new BadRequestException('You can only cancel your own orders');
+    }
+
+    if (!OrdersService.CANCELLABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException(
+        `Order cannot be cancelled — current status is "${order.status}". Only orders that are pending, confirmed, or processing can be cancelled.`,
+      );
+    }
+
+    // Restore stock for the cancelled items
+    await this.restoreStock(order.items as any[]);
+
+    order.status = OrderStatus.CANCELLED;
+    order.cancellationReason = dto.reason;
+    order.cancelledAt = new Date();
+    order.cancelledBy = role === 'admin' ? 'admin' : 'user';
+    await order.save();
+
+    return order.populate('items.product');
+  }
+
+  // ── Restore variant stock on cancellation ─────────────────────────────
+  private async restoreStock(
+    items: Array<{ product: any; weight: string; quantity: number }>,
+  ) {
+    const affectedProductIds = new Set<string>();
+    for (const item of items) {
+      const productId = item.product._id?.toString() ?? item.product.toString();
+      await this.variantModel.updateOne(
+        { product: item.product._id ?? item.product, weight: item.weight },
+        { $inc: { leftoverStock: item.quantity } },
+      );
+      affectedProductIds.add(productId);
+    }
+
+    // If product was marked out-of-stock, clear the flag since stock is restored
+    for (const productId of affectedProductIds) {
+      const hasStock = await this.variantModel.exists({
+        product: new Types.ObjectId(productId),
+        leftoverStock: { $gt: 0 },
+      });
+      if (hasStock) {
+        await this.productModel.findByIdAndUpdate(productId, {
+          isOutOfStock: false,
+        });
+      }
+    }
   }
 
   findAll() {

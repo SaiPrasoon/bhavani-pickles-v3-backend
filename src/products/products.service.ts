@@ -6,6 +6,7 @@ import {
   ProductVariant,
   ProductVariantDocument,
 } from './schemas/product-variant.schema';
+import { Category, CategoryDocument } from '../categories/schemas/category.schema';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -24,6 +25,7 @@ export class ProductsService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
     @InjectModel(ProductVariant.name)
     private variantModel: Model<ProductVariantDocument>,
+    @InjectModel(Category.name) private categoryModel: Model<CategoryDocument>,
   ) {}
 
   async create(dto: CreateProductDto) {
@@ -66,7 +68,15 @@ export class ProductsService {
     const filter: any = { isActive: true };
 
     if (category) filter.category = category;
-    if (search) filter.$text = { $search: search };
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      const matchingCategories = await this.categoryModel
+        .find({ name: regex })
+        .select('_id')
+        .lean();
+      const categoryIds = matchingCategories.map((c) => c._id);
+      filter.$or = [{ name: regex }, { category: { $in: categoryIds } }];
+    }
 
     // Price filter: query variants first to get matching product IDs
     if (minPrice !== undefined || maxPrice !== undefined) {
