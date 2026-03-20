@@ -24,6 +24,9 @@ export class Address {
   @Prop({ required: true })
   pincode!: string;
 
+  @Prop({ default: 'IN' })
+  country!: string;
+
   @Prop()
   phone?: string;
 
