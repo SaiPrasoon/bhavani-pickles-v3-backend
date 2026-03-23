@@ -39,6 +39,7 @@ export class ShippingAddress {
   @Prop({ required: true }) city!: string;
   @Prop({ required: true }) state!: string;
   @Prop({ required: true }) pincode!: string;
+  @Prop({ required: true, default: 'IN' }) country!: string;
   @Prop() phone?: string;
 }
 

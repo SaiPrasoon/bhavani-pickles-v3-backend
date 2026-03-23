@@ -17,6 +17,7 @@ export class ShippingAddressDto {
   @ApiProperty() @IsString() @IsNotEmpty() city: string;
   @ApiProperty() @IsString() @IsNotEmpty() state: string;
   @ApiProperty() @IsString() @IsNotEmpty() pincode: string;
+  @ApiProperty({ enum: ['IN', 'US'], default: 'IN' }) @IsIn(['IN', 'US']) country: string;
   @ApiPropertyOptional() @IsOptional() @IsString() phone?: string;
 }
 

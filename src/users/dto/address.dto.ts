@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AddressDto {
@@ -31,6 +31,10 @@ export class AddressDto {
   @IsString()
   @IsNotEmpty()
   pincode: string;
+
+  @ApiProperty({ enum: ['IN', 'US'], default: 'IN' })
+  @IsIn(['IN', 'US'])
+  country: string;
 
   @ApiPropertyOptional()
   @IsOptional()
