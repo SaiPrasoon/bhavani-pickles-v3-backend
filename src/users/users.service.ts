@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { AddressDto } from './dto/address.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -112,5 +112,30 @@ export class UsersService {
 
   async remove(id: string): Promise<void> {
     await this.userModel.findByIdAndUpdate(id, { isActive: false });
+  }
+
+  async getWishlist(userId: string) {
+    const user = await this.userModel
+      .findById(userId)
+      .populate({ path: 'wishlist', populate: ['category', 'variants'] })
+      .exec();
+    if (!user) throw new NotFoundException('User not found');
+    return user.wishlist;
+  }
+
+  async toggleWishlist(userId: string, productId: string): Promise<{ wishlisted: boolean }> {
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    const pid = new Types.ObjectId(productId);
+    const idx = user.wishlist.findIndex((id) => id.equals(pid));
+
+    if (idx === -1) {
+      user.wishlist.push(pid);
+    } else {
+      user.wishlist.splice(idx, 1);
+    }
+    await user.save();
+    return { wishlisted: idx === -1 };
   }
 }

@@ -54,6 +54,16 @@ export class UsersController {
     return this.usersService.changePassword(user.sub, dto);
   }
 
+  @Get('me/wishlist')
+  getWishlist(@CurrentUser() user: any) {
+    return this.usersService.getWishlist(user.sub);
+  }
+
+  @Post('me/wishlist/:productId')
+  toggleWishlist(@CurrentUser() user: any, @Param('productId') productId: string) {
+    return this.usersService.toggleWishlist(user.sub, productId);
+  }
+
   @Get(':id')
   @Roles(Role.ADMIN)
   findOne(@Param('id') id: string) {
