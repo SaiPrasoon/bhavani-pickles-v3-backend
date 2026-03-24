@@ -77,6 +77,20 @@ export class AuthService {
     }
   }
 
+  async forgotPassword(email: string): Promise<void> {
+    const result = await this.usersService.createPasswordResetToken(email);
+    if (!result) return; // don't reveal whether email exists
+
+    const clientUrl = this.configService.get('CLIENT_URL', 'https://www.bhavanipickles.com');
+    const resetUrl = `${clientUrl}/auth/reset-password?token=${result.token}`;
+
+    this.emailService.sendPasswordReset({ name: result.name, email, resetUrl });
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    return this.usersService.resetPassword(token, newPassword);
+  }
+
   private sanitizeUser(user: any) {
     const { password, ...sanitized } = user.toObject ? user.toObject() : user;
     return sanitized;

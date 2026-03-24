@@ -5,6 +5,7 @@ import { orderConfirmationTemplate } from './templates/order-confirmation';
 import { orderCancelledTemplate } from './templates/order-cancelled';
 import { orderStatusUpdateTemplate } from './templates/order-status-update';
 import { welcomeTemplate } from './templates/welcome';
+import { resetPasswordTemplate } from './templates/reset-password';
 
 export interface SendEmailOptions {
   to: string | string[];
@@ -130,6 +131,14 @@ export class EmailService {
       to: user.email,
       subject: 'Welcome to Bhavani Pickles!',
       html: welcomeTemplate(user),
+    });
+  }
+
+  async sendPasswordReset(data: { name: string; email: string; resetUrl: string }) {
+    return this.sendEmail({
+      to: data.email,
+      subject: 'Reset Your Password – Bhavani Pickles',
+      html: resetPasswordTemplate({ name: data.name, resetUrl: data.resetUrl }),
     });
   }
 }
